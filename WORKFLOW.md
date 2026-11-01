@@ -73,6 +73,8 @@ Parameters: {
 }
 ```
 
+**Variant code:** omit `variant_code` and the server resolves it from the store menu by size and crust (e.g. `14SCREEN`). If zero or several variants match, you get an error listing the options; nothing is added to the order. Pass `variant_code` to choose explicitly.
+
 **This is the proper way to add a customized pizza:**
 - Adds the coupon to `Coupons` array
 - Adds the pizza product with toppings to `Products` array
