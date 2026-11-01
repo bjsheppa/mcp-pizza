@@ -3,8 +3,10 @@ MCP tool handlers for order operations
 """
 import os
 import hashlib
+import json
+import secrets
 import time
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from mcp.types import TextContent
 from mcpizza.models.params import CreateOrderParams, AddItemParams, AddPizzaParams
 from mcpizza.services import order_service, payment_service
@@ -17,16 +19,16 @@ _TOKEN_TTL = 600
 
 
 def _generate_token(order_data: dict) -> str:
-    """Generate a confirm_token bound to the order contents hash.
+    """Generate a confirm_token hash from order contents.
 
-    The token is a hash of the normalized order contents (products, coupons,
-    address, total). The timestamp for token expiry is stored separately.
+    Uses json.dumps with sort_keys=True and default=str for deterministic
+    serialization that works across Python versions.
 
     Args:
         order_data: The order data dict after pricing.
 
     Returns:
-        A hex string confirm_token (SHA-256 hex, 64 chars).
+        A SHA-256 hex string confirm_token (64 chars).
     """
     key_material = {
         'products': order_data.get('Products', []),
@@ -34,7 +36,7 @@ def _generate_token(order_data: dict) -> str:
         'address': order_data.get('Address', {}),
         'total': order_data.get('Amounts', {}).get('Customer', 0),
     }
-    return hashlib.sha256(str(key_material).encode()).hexdigest()
+    return hashlib.sha256(json.dumps(key_material, sort_keys=True, default=str).encode()).hexdigest()
 
 
 def _validate_token(token: str, current_order_data: dict) -> Optional[dict]:
@@ -64,7 +66,7 @@ def _validate_token(token: str, current_order_data: dict) -> Optional[dict]:
     # Check if already used
     if entry['used']:
         return None
-    # Check order hash matches
+    # Check order hash matches current order
     current_hash = _generate_token(current_order_data)
     if current_hash != entry['order_hash']:
         return None
@@ -255,11 +257,14 @@ async def handle_prepare_order() -> list[TextContent]:
             if value or not isinstance(value, list):
                 current_order.data[key] = value
 
-        # NOW generate the token from the UPDATED current_order.data
-        # This ensures the token hash matches what _validate_token checks
-        # Token hash is based on order contents only; expiry TTL is stored separately
+        # Generate a random, unguessable confirm_token
+        confirm_token = secrets.token_urlsafe(16)
+
+        # Compute order hash for binding to order contents
         order_hash = _generate_token(current_order.data)
-        _token_store[order_hash] = {
+
+        # Store token metadata: {random_token: {timestamp, order_hash, used}}
+        _token_store[confirm_token] = {
             'timestamp': time.time(),
             'order_hash': order_hash,
             'used': False,
@@ -297,7 +302,7 @@ async def handle_prepare_order() -> list[TextContent]:
         if estimated_wait:
             text += f"⏱️ Estimated wait: {estimated_wait} minutes\n"
 
-        text += f"\n✅ Confirm Token: {order_hash}\n"
+        text += f"\n✅ Confirm Token: {confirm_token}\n"
         text += "⚠️ This token is single-use, expires in 10 minutes, "
         text += "and is bound to the order contents. Any change to the order "
         text += "will invalidate this token.\n"
