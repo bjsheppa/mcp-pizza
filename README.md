@@ -18,7 +18,7 @@ An MCP (Model Context Protocol) server that lets an AI assistant browse Domino's
 - **Card stays server-side.** It is read from a locked-down JSON file and never passes through tool arguments or the model.
 - **Dry run by default.** Real placement needs `MCPIZZA_ALLOW_PLACE=1`.
 - **Log redaction** of card numbers, CVVs, and expiry values.
-- **Input validation** (pydantic v2) and the MCP SDK pinned to 1.x (`mcp>=1.2,<2`).
+- **Input validation** (pydantic v2) and the MCP SDK 2.x (`mcp>=2,<3`).
 
 ## Tools (13)
 
@@ -105,7 +105,7 @@ Tests do not place orders or need network access to Domino's.
 - **Not verified:** a live order end to end; pay-at-door / in-store payment; saved-card or account login.
 - **pizzapi** is an unofficial wrapper, last released in 2019 (upstream now [ggrammar/pizzapi](https://github.com/ggrammar/pizzapi)).
 - **The confirm token guards against mistakes, not a hostile agent.** Anything that can call `prepare_order` can call `place_order`.
-- **MCP 2.x** is not supported yet; a port is planned as a separate change.
+- **MCP 2.x** is now supported (ported).
 
 ## Disclaimer
 
