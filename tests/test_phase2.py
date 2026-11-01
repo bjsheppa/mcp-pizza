@@ -201,10 +201,10 @@ def test_prepare_order_returns_token(mock_api_price):
     assert '11.90' in text  # total
     assert 'Confirm Token:' in text
 
-    # Token should be a 64-character hex string (SHA-256)
+    # Token should be a 22-character base64url string (secrets.token_urlsafe(16))
     token_line = [l for l in text.split('\n') if 'Confirm Token:' in l][0]
     token = token_line.split(':')[1].strip()
-    assert len(token) == 64, f"Token should be 64 chars, got {len(token)}"
+    assert len(token) == 22, f"Token should be 22 chars, got {len(token)}"
 
 
 def test_place_order_with_valid_token(mock_api_price):
