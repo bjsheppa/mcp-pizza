@@ -1,0 +1,28 @@
+============================================================
+PRICE CART TEST
+============================================================
+
+[1] Creating order...
+    Result: {'success': True, 'message': 'Order created for Brandon Sheppard', 'store_id': '7285', 'order_type': 'Delivery'}
+
+[2] Adding large pepperoni pizza with coupon 5062, size 14, topping 'P'...
+    Result: {'success': True, 'message': 'Added 14" NPAN pizza with 1 toppings using coupon 5062'}
+
+[3] Viewing order...
+    Order: {'store_id': '7285', 'customer': {'name': 'Brandon Sheppard', 'email': 'brandon@example.com', 'phone': '8435550100'}, 'coupons': [{'Code': '5062', 'Qty': 1, 'ID': 1}], 'products': [{'Code': 'P14IPAZA', 'Qty': 1, 'ID': 1, 'isNew': True, 'Options': {'P': {'1/1': '1'}}}], 'amounts': {}, 'service_method': 'Delivery'}
+
+[4] Pricing order with api_client.price_order (READ-ONLY)...
+    Order data keys: ['Address', 'Coupons', 'CustomerID', 'Extension', 'OrderChannel', 'OrderID', 'NoCombine', 'OrderMethod', 'OrderTaker', 'Payments', 'Products', 'Market', 'Currency', 'ServiceMethod', 'Tags', 'Version', 'SourceOrganizationURI', 'LanguageCode', 'Partners', 'NewUser', 'metaData', 'Amounts', 'BusinessDate', 'EstimatedWaitMinutes', 'PriceOrderTime', 'AmoundsBreakdown']
+    Products in order: [{'Code': 'P14IPAZA', 'Qty': 1, 'ID': 1, 'isNew': True, 'Options': {'P': {'1/1': '1'}}}]
+    Coupons in order: [{'Code': '5062', 'Qty': 1, 'ID': 1}]
+    Price result Status: -1
+    Amounts: {}
+    Status Items: [{'Code': 'AutoAddedOrderId'}, {'Code': 'RuleExecutionError', 'Message': 'BusinessRule VirtualCouponSwap failed. Cause: nullOn StoreOrderID: '}]
+    Order ID: V8IQNgtks21srS9rh_J3
+
+[5] Clearing order...
+    Result: {'success': True, 'message': 'Order cleared'}
+
+============================================================
+TEST COMPLETE
+============================================================

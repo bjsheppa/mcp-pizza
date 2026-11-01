@@ -1,0 +1,69 @@
+{
+  "Misc": {
+    "StoreID": "7285",
+    "BusinessDate": "2026-10-31",
+    "StoreAsOfTime": "2026-10-31 14:53:42",
+    "LanguageCode": "en",
+    "Version": "1.001"
+  },
+  "Products": {
+    "S_PIZZA": {
+      "Code": "S_PIZZA",
+      "Name": "Pizza",
+      "Description": "",
+      "ProductType": "Pizza",
+      "Price": null
+    },
+    "S_PIZPX": {
+      "Code": "S_PIZPX",
+      "Name": "Ultimate Pepperoni",
+      "Description": "",
+      "ProductType": "Pizza",
+      "Price": null
+    },
+    "F_PBITES": {
+      "Code": "F_PBITES",
+      "Name": "Parmesan Bread Bites",
+      "Description": "",
+      "ProductType": "Bread",
+      "Price": null
+    }
+  },
+  "Variants": {
+    "B12THIN": {
+      "Code": "B12THIN",
+      "ProductCode": "S_PIZZA",
+      "SizeCode": "12",
+      "Price": 11.99,
+      "Name": "Medium (12\") Thin Pizza"
+    },
+    "B10HAND": {
+      "Code": "B10HAND",
+      "ProductCode": "S_PIZZA",
+      "SizeCode": "10",
+      "Price": 9.99,
+      "Name": "Small (10\") Hand Tossed Pizza"
+    },
+    "B16PBIT": {
+      "Code": "B16PBIT",
+      "ProductCode": "S_PIZPX",
+      "SizeCode": "16",
+      "Price": 20.99,
+      "Name": "Large (16\") New York Style Ultimate Pepperoni"
+    },
+    "B8PBIT": {
+      "Code": "B8PBIT",
+      "ProductCode": "F_PBITES",
+      "SizeCode": "BRD8",
+      "Price": 3.99,
+      "Name": "8-Piece Parmesan Bread Bites"
+    },
+    "B16PBIT2": {
+      "Code": "B16PBIT2",
+      "ProductCode": "F_PBITES",
+      "SizeCode": "BRD16",
+      "Price": 5.49,
+      "Name": "16-Piece Parmesan Bread Bites"
+    }
+  }
+}

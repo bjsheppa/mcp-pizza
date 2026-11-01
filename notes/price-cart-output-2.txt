@@ -1,0 +1,36 @@
+============================================================
+PRICE CART TEST (READ-ONLY: price_order only)
+============================================================
+
+[A] Plain large hand-tossed pizza (no coupon)
+  Status: 1
+  Amounts.Customer: 21.07
+  StatusItems: [{'Code': 'AutoAddedOrderId'}, {'Code': 'PriceInformationRemoved'}]
+
+[B] Large Ultimate Pepperoni pizza WITH coupon 5062
+  Status: 1
+  Amounts.Customer: 26.62
+  StatusItems: [{'Code': 'AutoAddedOrderId'}, {'Code': 'PriceInformationRemoved'}]
+
+[C] Large hand-tossed pizza WITH coupon 5062 (S_PIZZA variant)
+  Status: 1
+  Amounts.Customer: 18.85
+  StatusItems: [{'Code': 'AutoAddedOrderId'}, {'Code': 'PriceInformationRemoved'}]
+
+============================================================
+SUMMARY
+============================================================
+A: Plain large hand-tossed -> Status=1, Customer=21.07
+B: Ultimate Pepperoni + 5062 -> Status=1, Customer=26.62
+C: Hand-tossed + 5062 -> Status=1, Customer=18.85
+
+All three tests succeeded (Status 1).
+  Plain: Amounts.Customer=$21.07
+  Ultimate+coupon: Amounts.Customer=$26.62
+  Hand-tossed+coupon: Amounts.Customer=$18.85
+
+Note: The pizzapi Order.add_item() uses variant codes from the
+menu (e.g. '14SCREEN', '14THIN', 'PBKIREZA'), NOT the hard-coded
+'P{size}I{crust}' format used by mcpizza.add_pizza_with_toppings().
+Augmenting order.data with StoreID/Email/Name/Phone is required
+for price_order to succeed.

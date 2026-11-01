@@ -129,7 +129,8 @@ def add_pizza_with_toppings(
     coupon_code: str,
     size: str = "12",
     crust: str = "NPAN",
-    toppings: list = None
+    toppings: list = None,
+    variant_code: str = None
 ) -> Dict[str, Any]:
     """
     Add a customized pizza with toppings using a coupon.
@@ -139,6 +140,11 @@ def add_pizza_with_toppings(
         size: Pizza size (10, 12, 14, 16)
         crust: Crust code (NPAN, HAND, THIN, etc.)
         toppings: List of topping codes (e.g., ['P', 'S'])
+        variant_code: Optional. If provided, used as the product code
+            instead of the auto-generated P{size}I{crust} format. Use the
+            Variant 'Code' field from the store's menu (e.g. '14SCREEN',
+            '14SCPFEAST', 'PBKIREZA'). This is needed because the API's
+            product code format varies by crust type and product.
 
     Returns:
         Pizza addition confirmation
@@ -154,14 +160,18 @@ def add_pizza_with_toppings(
     # Add the coupon
     current_order.add_coupon(coupon_code)
 
-    # Build pizza product code: P12IPAZA = Pizza, 12", Pan crust
-    crust_map = {
-        "NPAN": "PAZA",  # Pan crust
-        "HAND": "HAND",  # Hand tossed
-        "THIN": "THIN",
-        "BROOKLYN": "BK",
-    }
-    product_code = f"P{size}I{crust_map.get(crust, 'HAND')}"
+    # Determine the product code: use explicit variant_code if given,
+    # otherwise fall back to the P{size}I{crust} format.
+    if variant_code is None:
+        crust_map = {
+            "NPAN": "PAZA",  # Pan crust
+            "HAND": "HAND",  # Hand tossed
+            "THIN": "THIN",
+            "BROOKLYN": "BK",
+        }
+        product_code = f"P{size}I{crust_map.get(crust, 'HAND')}"
+    else:
+        product_code = variant_code
 
     # Build topping options: {"P": {"1/1": "1"}} = pepperoni, whole pizza
     topping_options = {}
@@ -173,7 +183,7 @@ def add_pizza_with_toppings(
 
     return {
         'success': True,
-        'message': f'Added {size}" {crust} pizza with {len(toppings)} toppings using coupon {coupon_code}'
+        'message': f'Added {size}" pizza with {len(toppings)} toppings using coupon {coupon_code}'
     }
 
 

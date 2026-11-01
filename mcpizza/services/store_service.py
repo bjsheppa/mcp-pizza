@@ -79,6 +79,14 @@ def get_menu(store_id: str) -> Dict[str, Any]:
     """
     menu_data = api_client.get_store_menu(store_id)
     products = menu_data.get('Products', {})
+    variants = menu_data.get('Variants', {})
+
+    # Build a price lookup from variants: product_code -> first variant price
+    product_prices = {}
+    for vcode, vitem in variants.items():
+        pc = vitem.get('ProductCode')
+        if pc and pc not in product_prices:
+            product_prices[pc] = vitem.get('Price')
 
     # Organize by category
     menu_by_category = {}
@@ -87,11 +95,14 @@ def get_menu(store_id: str) -> Dict[str, Any]:
         if category not in menu_by_category:
             menu_by_category[category] = []
 
+        # Get price from variant lookup, fallback to 'N/A'
+        price = product_prices.get(code, 'N/A')
+
         menu_by_category[category].append({
             'code': code,
             'name': item.get('Name'),
             'description': item.get('Description', ''),
-            'price': item.get('Price', 'N/A')
+            'price': price
         })
 
     return menu_by_category
@@ -111,6 +122,14 @@ def search_menu(store_id: str, query: Optional[str] = None, category: Optional[s
     """
     menu_data = api_client.get_store_menu(store_id)
     products = menu_data.get('Products', {})
+    variants = menu_data.get('Variants', {})
+
+    # Build a price lookup from variants: product_code -> first variant price
+    product_prices = {}
+    for vcode, vitem in variants.items():
+        pc = vitem.get('ProductCode')
+        if pc and pc not in product_prices:
+            product_prices[pc] = vitem.get('Price')
 
     results = []
     for code, item in products.items():
@@ -125,12 +144,15 @@ def search_menu(store_id: str, query: Optional[str] = None, category: Optional[s
             if query.lower() not in name and query.lower() not in desc:
                 continue
 
+        # Get price from variant lookup, fallback to 'N/A'
+        price = product_prices.get(code, 'N/A')
+
         results.append({
             'code': code,
             'name': item.get('Name'),
             'category': item.get('ProductType'),
             'description': item.get('Description', ''),
-            'price': item.get('Price', 'N/A')
+            'price': price
         })
 
     return results
