@@ -7,7 +7,7 @@ dependencies = [
     "pizzapi>=0.0.5",
     "requests>=2.31.0",
     "pydantic>=2.0.0",
-    "mcp>=0.1.0",
+    "mcp>=1.2,<2",
 ]
 
 [project.optional-dependencies]
@@ -22,3 +22,6 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 dev-dependencies = []
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
