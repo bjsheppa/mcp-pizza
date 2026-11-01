@@ -1,9 +1,79 @@
 """
 Payment processing and order placement services
 """
+import os
+import json
+import re
+import stat
 from typing import Dict, Any
+
 from mcpizza.api.client import api_client
 from mcpizza.services.order_service import get_current_order
+
+
+def _detect_card_type(card_number: str) -> str:
+    """Detect card type from the card number prefix.
+
+    Args:
+        card_number: Credit card number as a string.
+
+    Returns:
+        Card type string: 'Visa', 'Mastercard', 'Amex', 'Discover', or 'Unknown'.
+    """
+    number = card_number.strip()
+    if number.startswith('4'):
+        return 'Visa'
+    if number.startswith('34') or number.startswith('37'):
+        return 'Amex'
+    if re.match(r'^5[1-5]', number) or re.match(r'^22[2-9]\d|^2[7-9]\d|^27[0-2]', number):
+        return 'Mastercard'
+    if number.startswith('6011') or re.match(r'^65', number):
+        return 'Discover'
+    return 'Unknown'
+
+
+def _load_card_from_file(card_file_path: str) -> Dict[str, Any]:
+    """Load card data from a JSON file.
+
+    The file must contain keys: number, expiry, cvv, zip.
+    Requires file permissions to be 600 or 400 (owner-only read/write).
+    Raises ValueError if permissions are too permissive.
+
+    Args:
+        card_file_path: Path to the JSON card file.
+
+    Returns:
+        Dictionary with card data (number, expiry, cvv, zip).
+
+    Raises:
+        ValueError: If the file permissions allow group/other access.
+        FileNotFoundError: If the file does not exist.
+        json.JSONDecodeError: If the file is not valid JSON.
+    """
+    path = os.path.normpath(card_file_path)
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"Card file not found: {path}")
+
+    # Check permissions: require mode 600 or 400
+    file_stat = os.stat(path)
+    mode = file_stat.st_mode & 0o777
+    # Allow only 600 (rw-------) or 400 (r-------)
+    if mode & 0o077:  # group or other has any permission
+        raise ValueError(
+            f"Card file has insecure permissions: {oct(mode)}. "
+            "Require mode 600 or 400 (owner-only read/write)."
+        )
+
+    with open(path, 'r') as f:
+        card_data = json.load(f)
+
+    # Validate required keys
+    required = ['number', 'expiry', 'cvv', 'zip']
+    missing = [k for k in required if k not in card_data]
+    if missing:
+        raise ValueError(f"Card file is missing required keys: {', '.join(missing)}")
+
+    return card_data
 
 
 def place_order(payment_info: Dict[str, Any]) -> Dict[str, Any]:
@@ -13,10 +83,14 @@ def place_order(payment_info: Dict[str, Any]) -> Dict[str, Any]:
     ⚠️ WARNING: This charges a real credit card!
 
     Args:
-        payment_info: Dictionary with card_number, card_expiry, card_cvv, card_zip
+        payment_info: Dictionary with card_file_path key pointing to
+                      a JSON file containing card data (number, expiry, cvv, zip).
 
     Returns:
         Order placement result with status and details
+
+    Raises:
+        ValueError: If card file is missing, unreadable, or has bad permissions.
     """
     current_order = get_current_order()
 
@@ -28,7 +102,25 @@ def place_order(payment_info: Dict[str, Any]) -> Dict[str, Any]:
 
     result = {'success': False, 'steps': []}
 
-    # Step 1: Price the order (validate and get totals)
+    # Step 1: Load card data from file
+    card_file_path = payment_info.get('card_file_path')
+    if not card_file_path:
+        return {
+            'success': False,
+            'error': 'No card file path provided. Set MCPIZZA_CARD_FILE env var or '
+                     'pass card_file_path in payment_info.'
+        }
+
+    try:
+        card_data = _load_card_from_file(card_file_path)
+    except (FileNotFoundError, ValueError) as e:
+        # Never include card data in the error message
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+    # Step 2: Price the order (validate and get totals)
     try:
         result['steps'].append('Validating and pricing order...')
 
@@ -61,22 +153,22 @@ def place_order(payment_info: Dict[str, Any]) -> Dict[str, Any]:
         result['error'] = f"Pricing failed: {str(price_error)}"
         return result
 
-    # Step 2: Add payment information
+    # Step 3: Add payment information
     result['steps'].append('Adding payment information...')
 
     current_order.data['Payments'] = [{
         'Type': 'CreditCard',
-        'Number': payment_info.get('card_number'),
-        'Expiration': payment_info.get('card_expiry'),
+        'Number': card_data.get('number'),
+        'Expiration': card_data.get('expiry'),
         'Amount': current_order.data['Amounts'].get('Customer', 0),
-        'CardType': 'AMEX' if payment_info.get('card_number', '').startswith('3') else 'Visa',
-        'SecurityCode': payment_info.get('card_cvv'),
-        'PostalCode': payment_info.get('card_zip')
+        'CardType': _detect_card_type(card_data.get('number', '')),
+        'SecurityCode': card_data.get('cvv'),
+        'PostalCode': card_data.get('zip')
     }]
 
     result['steps'].append('Payment added')
 
-    # Step 3: Place the order
+    # Step 4: Place the order
     try:
         result['steps'].append('Submitting order to Domino\'s...')
 

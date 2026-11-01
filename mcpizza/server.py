@@ -228,16 +228,13 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="place_order",
-            description="⚠️ PLACES A REAL ORDER with real payment! Submit the current order to Domino's. Requires payment information.",
+            description="⚠️ PLACES A REAL ORDER with real payment! Submit the current order to Domino's. Requires MCPIZZA_CARD_FILE env var.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "card_number": {"type": "string", "description": "Credit card number"},
-                    "card_expiry": {"type": "string", "description": "Card expiry (MM/YY)"},
-                    "card_cvv": {"type": "string", "description": "Card CVV"},
-                    "card_zip": {"type": "string", "description": "Billing zip code"}
+                    "confirm_token": {"type": "string", "description": "Confirm token from prepare_order"}
                 },
-                "required": ["card_number", "card_expiry", "card_cvv", "card_zip"]
+                "required": ["confirm_token"]
             }
         )
     ]
