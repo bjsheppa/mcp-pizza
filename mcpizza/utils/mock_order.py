@@ -70,11 +70,11 @@ def create_mock_order(store: Any, customer: Any, address: Any, order_type: str) 
             'ID': len(order.data['Coupons']) + 1
         })
 
-    def add_product(product_code: str, options: Optional[Dict] = None):
+    def add_product(product_code: str, options: Optional[Dict] = None, quantity: int = 1):
         """Add product with toppings to order"""
         order.data['Products'].append({
             'Code': product_code,
-            'Qty': 1,
+            'Qty': quantity,
             'ID': len(order.data['Products']) + 1,
             'isNew': True,
             'Options': options or {}

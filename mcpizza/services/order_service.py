@@ -80,6 +80,10 @@ def create_order(
         # If Order() fails, create mock order
         order = create_mock_order(store, customer, address, order_type)
 
+    # Store the requested store_id in order data for consistent reference
+    if hasattr(order, 'data') and isinstance(order.data, dict):
+        order.data['store_id'] = store_id
+
     # Store globally
     current_order = order
     current_store = store
@@ -118,7 +122,7 @@ def add_item_to_order(item_code: str, quantity: int = 1, options: Optional[Dict]
             'message': f'Added coupon {item_code} to order'
         }
     else:
-        current_order.add_product(item_code, options)
+        current_order.add_product(item_code, options, quantity)
         return {
             'success': True,
             'message': f'Added {quantity}x {item_code} to order'
@@ -199,8 +203,11 @@ def view_order() -> Dict[str, Any]:
     if not current_order:
         raise Exception('No order created yet.')
 
+    # Use stored store_id from order data if available, otherwise use object store_id
+    store_id = current_order.data.get('store_id') if hasattr(current_order, 'data') and isinstance(current_order.data, dict) else None
+    
     return {
-        'store_id': current_order.store.id if hasattr(current_order, 'store') else 'N/A',
+        'store_id': store_id if store_id else (current_order.store.id if hasattr(current_order, 'store') else 'N/A'),
         'customer': {
             'name': f"{current_order.customer.first_name} {current_order.customer.last_name}",
             'email': current_order.customer.email,
