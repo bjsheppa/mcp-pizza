@@ -35,7 +35,8 @@ from mcpizza.tools.order_tools import (
     handle_add_pizza_with_toppings,
     handle_view_order,
     handle_clear_order,
-    handle_place_order
+    handle_place_order,
+    handle_prepare_order
 )
 from mcpizza.tools.guidance_tools import handle_get_ordering_guidance
 
@@ -228,7 +229,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="place_order",
-            description="⚠️ PLACES A REAL ORDER with real payment! Submit the current order to Domino's. Requires MCPIZZA_CARD_FILE env var.",
+            description="⚠️ Places a REAL order with real payment! Submit the current order to Domino's. Requires MCPIZZA_CARD_FILE env var and a confirm_token from prepare_order. In dry-run mode (default, unless MCPIZZA_ALLOW_PLACE=1): validates everything and returns \"DRY RUN: would place order for $X\" without calling api_client.place_order. In live mode (MCPIZZA_ALLOW_PLACE=1): places the actual order via Domino's API.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -236,6 +237,11 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["confirm_token"]
             }
+        ),
+        Tool(
+            name="prepare_order",
+            description="Price the current order and return a human-readable read-back plus a single-use confirm_token. Token expires in 10 minutes and is bound to the order contents so any change invalidates it. Must obtain a token before placing an order. Dry-run mode by default.",
+            inputSchema={"type": "object", "properties": {}}
         )
     ]
 
@@ -274,6 +280,8 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
             )
         elif name == "place_order":
             result = await handle_place_order(arguments)
+        elif name == "prepare_order":
+            result = await handle_prepare_order()
         else:
             result = [TextContent(type="text", text=f"Unknown tool: {name}")]
 
