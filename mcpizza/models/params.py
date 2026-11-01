@@ -3,7 +3,8 @@ Pydantic models for MCP Pizza tools
 """
 import re
 from typing import Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
+from pydantic import field_validator
 
 
 def _validate_store_id(v):
@@ -71,7 +72,7 @@ class StoreInfoParams(BaseModel):
     """Parameters for getting store information"""
     store_id: str = Field(description="Store ID to get information for")
 
-    @validator('store_id')
+    @field_validator('store_id')
     def validate_store_id(cls, v):
         return _validate_store_id(v)
 
@@ -95,27 +96,27 @@ class CreateOrderParams(BaseModel):
     delivery_zip: str = Field(description="Delivery zip code")
     order_type: str = Field(default="Delivery", description="Order type: 'Delivery' or 'Carryout'")
 
-    @validator('store_id')
+    @field_validator('store_id')
     def validate_store_id(cls, v):
         return _validate_store_id(v)
 
-    @validator('delivery_state')
+    @field_validator('delivery_state')
     def validate_state(cls, v):
         return _validate_state(v)
 
-    @validator('delivery_zip')
+    @field_validator('delivery_zip')
     def validate_zip(cls, v):
         return _validate_zip(v)
 
-    @validator('customer_email')
+    @field_validator('customer_email')
     def validate_email(cls, v):
         return _validate_email(v)
 
-    @validator('customer_phone')
+    @field_validator('customer_phone')
     def validate_phone(cls, v):
         return _validate_phone(v)
 
-    @validator('order_type')
+    @field_validator('order_type')
     def validate_order_type(cls, v):
         return _validate_order_type(v)
 
@@ -126,11 +127,11 @@ class AddItemParams(BaseModel):
     quantity: int = Field(default=1, description="Quantity to add")
     options: Optional[dict] = Field(default=None, description="Item customization options")
 
-    @validator('item_code')
+    @field_validator('item_code')
     def validate_item_code(cls, v):
         return _validate_code(v, r'^[A-Za-z0-9_]{1,24}$')
 
-    @validator('quantity')
+    @field_validator('quantity')
     def validate_quantity(cls, v):
         return _validate_quantity(v)
 
@@ -142,6 +143,6 @@ class AddPizzaParams(BaseModel):
     crust: str = Field(default="NPAN", description="Crust type: NPAN (pan), HAND (hand tossed), THIN, etc.")
     toppings: list[str] = Field(description="List of topping codes (e.g., ['P', 'S'] for pepperoni and sausage)")
 
-    @validator('coupon_code')
+    @field_validator('coupon_code')
     def validate_coupon_code(cls, v):
         return _validate_code(v, r'^[A-Za-z0-9_]{1,24}$')
