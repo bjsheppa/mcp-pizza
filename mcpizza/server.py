@@ -7,9 +7,16 @@ This is the main server coordinator that registers and routes MCP tools.
 Business logic is in services/, tool handlers in tools/.
 """
 
-from typing import Any
 from mcp.server import Server
-from mcp.types import Tool, TextContent
+from mcp.server.context import ServerRequestContext
+from mcp.types import (
+    Tool,
+    TextContent,
+    ListToolsResult,
+    CallToolResult,
+    CallToolRequestParams,
+    PaginatedRequestParams,
+)
 
 from mcpizza.logger import interaction_logger
 from mcpizza.errors import safe_error
@@ -41,19 +48,18 @@ from mcpizza.tools.order_tools import (
 )
 from mcpizza.tools.guidance_tools import handle_get_ordering_guidance
 
-# Initialize MCP server
-app = Server("mcpizza")
 
-
-@app.list_tools()
-async def list_tools() -> list[Tool]:
+async def list_tools(
+    ctx: ServerRequestContext,
+    params: PaginatedRequestParams | None = None,
+) -> ListToolsResult:
     """List all available pizza ordering tools"""
     interaction_logger.log_tool_list_request()
-    return [
+    tools = [
         Tool(
             name="find_stores",
             description="Find nearby Domino's stores by address or zip code. Returns store IDs, addresses, and phone numbers.",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "query": {
@@ -67,7 +73,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="get_store_info",
             description="Get detailed information about a specific Domino's store including hours and services.",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "store_id": {
@@ -81,7 +87,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="get_menu",
             description="Get the full menu for a specific store. Returns all available items organized by category.",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "store_id": {
@@ -95,7 +101,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="search_menu",
             description="Search for specific menu items at a store. Can filter by category and search term.",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "store_id": {
@@ -117,7 +123,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="create_order",
             description="Create a new order for delivery or carryout. Required before adding items.",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "store_id": {"type": "string", "description": "Store ID"},
@@ -137,7 +143,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="add_item_to_order",
             description="Add a menu item to the current order. Must create an order first.",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "item_code": {
@@ -160,7 +166,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="add_pizza_with_toppings",
             description="Add a customized pizza with toppings using a coupon code. Handles proper product + topping configuration.",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "coupon_code": {
@@ -189,17 +195,17 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="view_order",
             description="View the current order including all items, prices, and totals.",
-            inputSchema={"type": "object", "properties": {}}
+            input_schema={"type": "object", "properties": {}}
         ),
         Tool(
             name="clear_order",
             description="Clear the current order and start over.",
-            inputSchema={"type": "object", "properties": {}}
+            input_schema={"type": "object", "properties": {}}
         ),
         Tool(
             name="get_coupons",
             description="Get available coupons and deals for a store. Returns coupon codes, descriptions, and prices.",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "store_id": {
@@ -213,7 +219,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="get_ordering_guidance",
             description="Get AI guidance on how to build the best order based on user preferences. Analyzes deals, suggests optimal pizza counts, and provides ordering strategy.",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "store_id": {
@@ -231,7 +237,7 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="place_order",
             description="⚠️ Places a REAL order with real payment! Submit the current order to Domino's. Requires MCPIZZA_CARD_FILE env var and a confirm_token from prepare_order. In dry-run mode (default, unless MCPIZZA_ALLOW_PLACE=1): validates everything and returns \"DRY RUN: would place order for $X\" without calling api_client.place_order. In live mode (MCPIZZA_ALLOW_PLACE=1): places the actual order via Domino's API.",
-            inputSchema={
+            input_schema={
                 "type": "object",
                 "properties": {
                     "confirm_token": {"type": "string", "description": "Confirm token from prepare_order"}
@@ -242,14 +248,19 @@ async def list_tools() -> list[Tool]:
         Tool(
             name="prepare_order",
             description="Price the current order and return a human-readable read-back plus a single-use confirm_token. Token expires in 10 minutes and is bound to the order contents so any change invalidates it. Must obtain a token before placing an order. Dry-run mode by default.",
-            inputSchema={"type": "object", "properties": {}}
+            input_schema={"type": "object", "properties": {}}
         )
     ]
+    return ListToolsResult(tools=tools)
 
 
-@app.call_tool()
-async def call_tool(name: str, arguments: Any) -> list[TextContent]:
+async def call_tool(
+    ctx: ServerRequestContext,
+    params: CallToolRequestParams,
+) -> CallToolResult:
     """Route tool calls to their handlers"""
+    name = params.name
+    arguments = params.arguments or {}
     interaction_logger.log_tool_call(name, arguments)
 
     try:
@@ -284,16 +295,26 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         elif name == "prepare_order":
             result = await handle_prepare_order()
         else:
-            result = [TextContent(type="text", text=f"Unknown tool: {name}")]
+            interaction_logger.log_tool_response(name, False, None, error=f"Unknown tool: {name}")
+            return CallToolResult(
+                content=[TextContent(type="text", text=f"Unknown tool: {name}")],
+                is_error=True,
+            )
 
         interaction_logger.log_tool_response(name, True, result)
-        return result
+        return CallToolResult(content=result, is_error=False)
 
     except Exception as e:
         error_msg = f"Error executing {name}: {safe_error(e)}"
         interaction_logger.log_tool_response(name, False, None, error=error_msg)
         interaction_logger.log_error("tool_execution", error_msg, {"tool": name, "arguments": arguments})
-        return [TextContent(type="text", text=error_msg)]
+        return CallToolResult(
+            content=[TextContent(type="text", text=error_msg)],
+            is_error=True,
+        )
+
+
+app = Server("mcpizza", on_list_tools=list_tools, on_call_tool=call_tool)
 
 
 async def main():
