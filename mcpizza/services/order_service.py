@@ -6,6 +6,10 @@ from typing import Dict, Any, List, Optional
 from pizzapi import Address, Customer, Order, Store
 from mcpizza.utils.mock_order import create_mock_order
 from mcpizza.api.client import api_client
+from mcpizza.errors import OrderError
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # Global state for current order
@@ -75,7 +79,8 @@ def create_order(
             store = next((s for s in all_stores if s.id == store_id), all_stores[0])
         else:
             store = all_stores
-    except Exception:
+    except Exception as e:
+        logger.warning("closest_store lookup failed (%s); using requested store id", type(e).__name__)
         # closest_store() may fail in environments without store data;
         # fall back to creating a Store from the requested store_id
         store = Store(data={'StoreID': store_id}, country='us')
@@ -83,7 +88,8 @@ def create_order(
     # Create order - use mock order to bypass menu parsing bugs
     try:
         order = Order(store, customer, address)
-    except Exception:
+    except Exception as e:
+        logger.warning("Order() failed (%s); using mock order", type(e).__name__)
         # If Order() fails, create mock order
         order = create_mock_order(store, customer, address, order_type)
 
@@ -119,7 +125,7 @@ def add_item_to_order(item_code: str, quantity: int = 1, options: Optional[Dict]
     global current_order
 
     if not current_order:
-        raise Exception('No order created. Call create_order first.')
+        raise OrderError('No order created. Call create_order first.')
 
     # Add item (4-digit codes are coupons)
     if item_code.isdigit() and len(item_code) == 4:
@@ -218,7 +224,7 @@ def add_pizza_with_toppings(
     global current_order
 
     if not current_order:
-        raise Exception('No order created. Call create_order first.')
+        raise OrderError('No order created. Call create_order first.')
 
     if toppings is None:
         toppings = []
@@ -265,7 +271,7 @@ def view_order() -> Dict[str, Any]:
     global current_order
 
     if not current_order:
-        raise Exception('No order created yet.')
+        raise OrderError('No order created yet.')
 
     # Use stored store_id from order data if available, otherwise use object store_id
     store_id = current_order.data.get('store_id') if hasattr(current_order, 'data') and isinstance(current_order.data, dict) else None
