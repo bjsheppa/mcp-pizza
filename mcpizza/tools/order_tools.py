@@ -11,6 +11,7 @@ from mcp.types import TextContent
 from mcpizza.models.params import CreateOrderParams, AddItemParams, AddPizzaParams
 from mcpizza.services import order_service, payment_service
 from mcpizza.logger import interaction_logger
+from mcpizza.errors import safe_error
 
 # Token storage: {confirm_token: {"timestamp": float, "order_hash": str, "used": bool}}
 _token_store: Dict[str, dict] = {}
@@ -104,7 +105,7 @@ async def handle_create_order(params: CreateOrderParams) -> list[TextContent]:
     except Exception as e:
         return [TextContent(
             type="text",
-            text=f"Error creating order: {str(e)}"
+            text=f"Error creating order: {safe_error(e)}"
         )]
 
 
@@ -127,7 +128,7 @@ async def handle_add_item_to_order(params: AddItemParams) -> list[TextContent]:
     except Exception as e:
         return [TextContent(
             type="text",
-            text=f"Error adding item: {str(e)}"
+            text=f"Error adding item: {safe_error(e)}"
         )]
 
 
@@ -151,7 +152,7 @@ async def handle_add_pizza_with_toppings(params: AddPizzaParams) -> list[TextCon
     except Exception as e:
         return [TextContent(
             type="text",
-            text=f"Error adding pizza: {str(e)}"
+            text=f"Error adding pizza: {safe_error(e)}"
         )]
 
 
@@ -193,7 +194,7 @@ async def handle_view_order() -> list[TextContent]:
     except Exception as e:
         return [TextContent(
             type="text",
-            text=f"Error viewing order: {str(e)}"
+            text=f"Error viewing order: {safe_error(e)}"
         )]
 
 
@@ -216,7 +217,7 @@ async def handle_clear_order() -> list[TextContent]:
     except Exception as e:
         return [TextContent(
             type="text",
-            text=f"Error clearing order: {str(e)}"
+            text=f"Error clearing order: {safe_error(e)}"
         )]
 
 
@@ -311,11 +312,9 @@ async def handle_prepare_order() -> list[TextContent]:
         return [TextContent(type="text", text=text)]
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         return [TextContent(
             type="text",
-            text=f"❌ Failed to prepare order: {str(e)}"
+            text=f"❌ Failed to prepare order: {safe_error(e)}"
         )]
 
 
@@ -427,7 +426,7 @@ async def handle_place_order(args: dict) -> list[TextContent]:
         except Exception as e:
             return [TextContent(
                 type="text",
-                text=f"❌ Place order failed: {str(e)}"
+                text=f"❌ Place order failed: {safe_error(e)}"
             )]
     else:
         # Dry-run mode: validate everything without calling api_client.place_order

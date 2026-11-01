@@ -12,6 +12,7 @@ from mcp.server import Server
 from mcp.types import Tool, TextContent
 
 from mcpizza.logger import interaction_logger
+from mcpizza.errors import safe_error
 from mcpizza.models.params import (
     StoreSearchParams,
     StoreInfoParams,
@@ -289,7 +290,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         return result
 
     except Exception as e:
-        error_msg = f"Error executing {name}: {str(e)}"
+        error_msg = f"Error executing {name}: {safe_error(e)}"
         interaction_logger.log_tool_response(name, False, None, error=error_msg)
         interaction_logger.log_error("tool_execution", error_msg, {"tool": name, "arguments": arguments})
         return [TextContent(type="text", text=error_msg)]
