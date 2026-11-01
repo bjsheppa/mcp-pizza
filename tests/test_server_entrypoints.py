@@ -90,19 +90,18 @@ async def test_call_tool_unknown_tool_returns_error():
 
 
 async def test_call_tool_handler_raise_returns_is_error():
-    """(c) call_tool where a handler raises returns is_error=True and text does not contain raw exception text if safe_error redacts it."""
-    # Test with a tool that takes no arguments and whose handler raises
-    # We'll test by checking the error path returns is_error=True
-    # Since all handlers are wrapped in try/except with safe_error,
-    # we just verify the return type and is_error flag
-    r = await server.call_tool(None, types.SimpleNamespace(name="view_order", arguments=None))
-    # view_order with no current order shouldn't raise, but let's test the error path
-    # by calling with a name that would trigger an exception in a handler
-    # Actually, let's just verify that the call_tool function returns CallToolResult
-    # with is_error=True when the handler would raise
-    # We'll test the unknown tool case already covers is_error=True
-    # and the safe_error path is verified by the existing test_safe_errors tests
-    assert r.is_error == False or True  # just verify it works without crash
+    """A raising handler yields is_error=True with a redacted message, not the raw exception text."""
+    secret = "card=4111111111111111 body=<secret>"
+
+    async def boom():
+        raise RuntimeError(secret)
+
+    with mock.patch.object(server, "handle_view_order", boom):
+        r = await server.call_tool(None, types.SimpleNamespace(name="view_order", arguments=None))
+    assert r.is_error is True
+    text = r.content[0].text
+    assert "unexpected RuntimeError" in text
+    assert secret not in text and "4111" not in text
 
 
 async def test_call_tool_arguments_none_works_view_order():
