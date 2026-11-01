@@ -2,7 +2,7 @@
 Order creation and management services
 """
 from typing import Dict, Any, Optional
-from pizzapi import Address, Customer, Order
+from pizzapi import Address, Customer, Order, Store
 from mcpizza.utils.mock_order import create_mock_order
 
 
@@ -64,14 +64,19 @@ def create_order(
     )
 
     # Get store by finding closest one to the address
-    all_stores = address.closest_store()
-
-    # closest_store() can return a single store or a list
-    if isinstance(all_stores, list):
-        # Find the requested store in the list
-        store = next((s for s in all_stores if s.id == store_id), all_stores[0])
-    else:
-        store = all_stores
+    store = None
+    try:
+        all_stores = address.closest_store()
+        # closest_store() can return a single store or a list
+        if isinstance(all_stores, list):
+            # Find the requested store in the list
+            store = next((s for s in all_stores if s.id == store_id), all_stores[0])
+        else:
+            store = all_stores
+    except Exception:
+        # closest_store() may fail in environments without store data;
+        # fall back to creating a Store from the requested store_id
+        store = Store(data={'StoreID': store_id}, country='us')
 
     # Create order - use mock order to bypass menu parsing bugs
     try:
