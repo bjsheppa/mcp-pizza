@@ -89,14 +89,15 @@ def test_add_pizza_with_toppings():
         coupon_code="9204",
         size="12",
         crust="NPAN",
-        toppings=["P", "S"]
+        toppings=["P", "S"],
+        variant_code="14SCREEN",
     )
 
-    # Verify
+    # Verify: explicit variant_code wins, no menu lookup needed
     assert result['success'] is True
     assert order_service.current_order.data['Coupons'][0]['Code'] == "9204"
     assert len(order_service.current_order.data['Products']) == 1
-    assert order_service.current_order.data['Products'][0]['Code'] == "P12IPAZA"
+    assert order_service.current_order.data['Products'][0]['Code'] == "14SCREEN"
 
 
 def test_view_order():
@@ -214,3 +215,81 @@ def test_view_order_includes_prices():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# --- variant resolution (no network: menu_data injected) ---
+
+def _pizza_order():
+    store = SimpleNamespace(id="8022")
+    customer = SimpleNamespace(first_name="John", last_name="Doe", email="john@example.com", phone="5555551234")
+    address = SimpleNamespace(street="123 Main St", city="Fort Worth", region="TX", zip="76102")
+    order_service.current_order = create_mock_order(store, customer, address, "Delivery")
+
+
+def test_resolve_variant_success_from_fixture():
+    _pizza_order()
+    result = order_service.add_pizza_with_toppings(
+        coupon_code="9204", size="12", crust="THIN", toppings=["P"], menu_data=_MENU_FIXTURE)
+    assert result['success'] is True
+    assert order_service.current_order.data['Products'][0]['Code'] == "B12THIN"
+    assert order_service.current_order.data['Coupons'][0]['Code'] == "9204"
+
+
+def test_resolve_variant_no_match_lists_options_and_changes_nothing():
+    _pizza_order()
+    result = order_service.add_pizza_with_toppings(
+        coupon_code="9204", size="12", crust="HAND", menu_data=_MENU_FIXTURE)
+    assert result['success'] is False
+    assert result['error']['code'] == 'VARIANT_RESOLUTION_ERROR'
+    assert any(o['code'] == 'B12THIN' for o in result['error']['options'])
+    assert order_service.current_order.data['Coupons'] == []
+    assert order_service.current_order.data['Products'] == []
+
+
+def test_resolve_variant_ambiguous_returns_options():
+    _pizza_order()
+    menu = {
+        'Products': {'S_PIZZA': {'ProductType': 'Pizza'}, 'S_OTHER': {'ProductType': 'Pizza'}},
+        'Variants': {
+            'A12THIN': {'ProductCode': 'S_PIZZA', 'SizeCode': '12', 'Price': 1, 'Name': 'Medium (12") Thin Pizza'},
+            'B12THIN': {'ProductCode': 'S_OTHER', 'SizeCode': '12', 'Price': 2, 'Name': 'Medium (12") Thin Veggie'},
+        },
+    }
+    result = order_service.add_pizza_with_toppings(
+        coupon_code="9204", size="12", crust="THIN", menu_data=menu)
+    assert result['success'] is False
+    assert {o['code'] for o in result['error']['options']} == {'A12THIN', 'B12THIN'}
+    assert order_service.current_order.data['Coupons'] == []
+
+
+def test_resolve_variant_explicit_overrides_menu():
+    _pizza_order()
+    result = order_service.add_pizza_with_toppings(
+        coupon_code="9204", size="12", crust="THIN", variant_code="14SCREEN", menu_data=_MENU_FIXTURE)
+    assert result['success'] is True
+    assert order_service.current_order.data['Products'][0]['Code'] == "14SCREEN"
+
+
+def test_resolve_variant_ny_does_not_match_spinach():
+    menu = {
+        'Products': {'S_P': {'ProductType': 'Pizza'}},
+        'Variants': {'X12': {'ProductCode': 'S_P', 'SizeCode': '12', 'Price': 1, 'Name': 'Medium Spinach Feta'}},
+    }
+    code, options = order_service._resolve_variant_code(menu, '12', 'NY')
+    assert code is None and options
+
+
+def test_menu_fetch_failure_returns_error_not_guess():
+    _pizza_order()
+    with patch('mcpizza.services.order_service.api_client') as client:
+        client.get_store_menu.side_effect = RuntimeError('boom')
+        result = order_service.add_pizza_with_toppings(coupon_code="9204", size="12", crust="THIN")
+    assert result['success'] is False
+    assert order_service.current_order.data['Products'] == []
+
+
+def test_no_store_returns_error():
+    _pizza_order()
+    order_service.current_order.store = None
+    result = order_service.add_pizza_with_toppings(coupon_code="9204", size="12", crust="THIN")
+    assert result['success'] is False

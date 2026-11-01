@@ -13,7 +13,7 @@ An MCP (Model Context Protocol) server that lets an AI assistant browse Domino's
 ### What this fork changes
 
 - **Menu prices fixed.** Prices come from the menu's `Variants`; `Products` always have `Price: null`.
-- **Explicit `variant_code`** on `add_pizza_with_toppings` (e.g. `14SCREEN`). The default `P{size}I{crust}` guess does not match real menus.
+- **Variant codes resolved from the menu.** `add_pizza_with_toppings` looks up the real Variant code (e.g. `14SCREEN`) by size and crust, or you can pass `variant_code`. If it cannot find exactly one match it returns an error listing options and leaves the order unchanged.
 - **Two-step placement.** `prepare_order` returns a read-back and a single-use confirm token; `place_order` accepts only that token.
 - **Card stays server-side.** It is read from a locked-down JSON file and never passes through tool arguments or the model.
 - **Dry run by default.** Real placement needs `MCPIZZA_ALLOW_PLACE=1`.
@@ -83,7 +83,7 @@ mcpizza/
   tools/               MCP tool handlers
   api/                 Domino's HTTP client
   utils/mock_order.py  order object used with pizzapi calls
-tests/                 39 tests (models, services, API client, confirm gate, card file, redaction, server entrypoints)
+tests/                 46 tests (models, services, API client, confirm gate, card file, redaction, server entrypoints)
 docs/SECURITY.md       threat model and safe-ordering setup
 WORKFLOW.md            step-by-step tool workflow
 docs/                 security model, pricing investigation notes
@@ -94,7 +94,7 @@ Logs go to `logs/interactions_YYYYMMDD.log` (gitignored), one JSON object per li
 ## Tests
 
 ```bash
-.venv/bin/pytest -q    # 39 passed
+.venv/bin/pytest -q    # 46 passed
 ```
 
 Tests do not place orders or need network access to Domino's.

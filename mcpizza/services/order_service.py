@@ -1,9 +1,11 @@
 """
 Order creation and management services
 """
-from typing import Dict, Any, Optional
+import re
+from typing import Dict, Any, List, Optional
 from pizzapi import Address, Customer, Order, Store
 from mcpizza.utils.mock_order import create_mock_order
+from mcpizza.api.client import api_client
 
 
 # Global state for current order
@@ -134,29 +136,84 @@ def add_item_to_order(item_code: str, quantity: int = 1, options: Optional[Dict]
         }
 
 
+# Crust code (as accepted by add_pizza_with_toppings) -> regex over the menu
+# variant Name. Matching is by whole word so e.g. "NY" cannot match "SPINACH".
+_CRUST_PATTERNS = {
+    "HAND": r"\bHAND\b",
+    "THIN": r"\bTHIN\b",
+    "NPAN": r"\bPAN\b",
+    "BROOKLYN": r"\bBROOKLYN\b",
+    "BKLYN": r"\bBROOKLYN\b",
+    "NY": r"\b(NEW YORK|NY)\b",
+}
+
+
+def _resolve_variant_code(menu_data: Dict[str, Any], size: str, crust: str):
+    """Find the menu Variant code for a pizza of this size and crust.
+
+    Only variants of products whose ProductType is 'Pizza' are considered.
+    Returns (code, None) on exactly one match, otherwise (None, options)
+    where options lists candidate variants (code, name, price) so the caller
+    can pick one explicitly. Never guesses.
+    """
+    products = menu_data.get('Products', {})
+    pattern = _CRUST_PATTERNS.get(str(crust).upper())
+    candidates: List[Dict[str, Any]] = []
+    matches: List[Dict[str, Any]] = []
+    for vcode, v in menu_data.get('Variants', {}).items():
+        if products.get(v.get('ProductCode'), {}).get('ProductType') != 'Pizza':
+            continue
+        entry = {'code': vcode, 'name': v.get('Name', ''), 'price': v.get('Price')}
+        if str(v.get('SizeCode')) != str(size):
+            continue
+        candidates.append(entry)
+        if pattern and re.search(pattern, entry['name'].upper()):
+            matches.append(entry)
+    if len(matches) == 1:
+        return matches[0]['code'], None
+    # No unique match: offer same-size pizzas, or all pizzas if none at that size.
+    if not candidates:
+        candidates = [
+            {'code': c, 'name': v.get('Name', ''), 'price': v.get('Price')}
+            for c, v in menu_data.get('Variants', {}).items()
+            if products.get(v.get('ProductCode'), {}).get('ProductType') == 'Pizza'
+        ]
+    return None, matches or candidates
+
+
+def _resolution_error(message: str, options: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    return {
+        'success': False,
+        'message': message,
+        'error': {'code': 'VARIANT_RESOLUTION_ERROR', 'options': options or []},
+    }
+
+
 def add_pizza_with_toppings(
     coupon_code: str,
     size: str = "12",
     crust: str = "NPAN",
     toppings: list = None,
-    variant_code: str = None
+    variant_code: str = None,
+    menu_data: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Add a customized pizza with toppings using a coupon.
 
     Args:
-        coupon_code: Coupon code (e.g., '9204')
-        size: Pizza size (10, 12, 14, 16)
-        crust: Crust code (NPAN, HAND, THIN, etc.)
+        coupon_code: Coupon code to use (e.g., '9204')
+        size: Pizza size in inches (10, 12, 14, 16)
+        crust: Crust code (NPAN, HAND, THIN, BROOKLYN, NY)
         toppings: List of topping codes (e.g., ['P', 'S'])
-        variant_code: Optional. If provided, used as the product code
-            instead of the auto-generated P{size}I{crust} format. Use the
-            Variant 'Code' field from the store's menu (e.g. '14SCREEN',
-            '14SCPFEAST', 'PBKIREZA'). This is needed because the API's
-            product code format varies by crust type and product.
+        variant_code: Optional explicit menu Variant code (e.g. '14SCREEN').
+            If omitted, it is resolved from the current store's menu by size
+            and crust. If it cannot be resolved to exactly one variant, an
+            error listing the options is returned and the order is unchanged.
+        menu_data: Optional pre-fetched menu (used by tests); fetched from the
+            store otherwise.
 
     Returns:
-        Pizza addition confirmation
+        Pizza addition confirmation, or an error result.
     """
     global current_order
 
@@ -166,33 +223,35 @@ def add_pizza_with_toppings(
     if toppings is None:
         toppings = []
 
-    # Add the coupon
-    current_order.add_coupon(coupon_code)
+    product_code = variant_code
+    if product_code is None:
+        store_id = (getattr(getattr(current_order, 'store', None), 'id', None)
+                    or (current_order.data or {}).get('StoreID'))
+        if not store_id:
+            return _resolution_error('Order has no store; cannot resolve pizza variant. Pass variant_code.')
+        if menu_data is None:
+            try:
+                menu_data = api_client.get_store_menu(store_id)
+            except Exception as e:
+                return _resolution_error(f'Could not fetch store menu ({e}); pass variant_code.')
+        product_code, options = _resolve_variant_code(menu_data, size, crust)
+        if product_code is None:
+            return _resolution_error(
+                f'No unique {size}" {crust} pizza variant found; pass variant_code.', options)
 
-    # Determine the product code: use explicit variant_code if given,
-    # otherwise fall back to the P{size}I{crust} format.
-    if variant_code is None:
-        crust_map = {
-            "NPAN": "PAZA",  # Pan crust
-            "HAND": "HAND",  # Hand tossed
-            "THIN": "THIN",
-            "BROOKLYN": "BK",
-        }
-        product_code = f"P{size}I{crust_map.get(crust, 'HAND')}"
-    else:
-        product_code = variant_code
+    # Add the coupon only after the product code is known
+    current_order.add_coupon(coupon_code)
 
     # Build topping options: {"P": {"1/1": "1"}} = pepperoni, whole pizza
     topping_options = {}
     for topping in toppings:
         topping_options[topping] = {"1/1": "1"}
 
-    # Add product with toppings
     current_order.add_product(product_code, topping_options)
 
     return {
         'success': True,
-        'message': f'Added {size}" pizza with {len(toppings)} toppings using coupon {coupon_code}'
+        'message': f'Added {size}" pizza ({product_code}) with {len(toppings)} toppings using coupon {coupon_code}'
     }
 
 
@@ -242,6 +301,7 @@ def clear_order() -> Dict[str, Any]:
         'success': True,
         'message': 'Order cleared'
     }
+
 
 
 def get_current_order():
