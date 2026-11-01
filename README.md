@@ -83,7 +83,7 @@ mcpizza/
   tools/               MCP tool handlers
   api/                 Domino's HTTP client
   utils/mock_order.py  order object used with pizzapi calls
-tests/                 46 tests (models, services, API client, confirm gate, card file, redaction, server entrypoints)
+tests/                 51 tests (models, services, API client, confirm gate, card file, redaction, server entrypoints)
 docs/SECURITY.md       threat model and safe-ordering setup
 WORKFLOW.md            step-by-step tool workflow
 docs/                 security model, pricing investigation notes
@@ -94,7 +94,7 @@ Logs go to `logs/interactions_YYYYMMDD.log` (gitignored), one JSON object per li
 ## Tests
 
 ```bash
-.venv/bin/pytest -q    # 46 passed
+.venv/bin/pytest -q    # 51 passed
 ```
 
 Tests do not place orders or need network access to Domino's.

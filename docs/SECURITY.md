@@ -11,6 +11,8 @@ This server can spend money. These are the controls and their limits.
 | Token-only placement | `place_order` takes only `confirm_token`. No card fields in tool arguments. |
 | Card file | Card is loaded server-side from the JSON file at `MCPIZZA_CARD_FILE` (`number`, `expiry`, `cvv`, `zip`). The file must be mode 600 or 400. |
 | Log redaction | Card numbers (12+ digit runs) and values under card/cvv/cvc/security/expiry/expiration/payment keys are redacted from `logs/`. Confirm tokens are not redacted. |
+| Safe errors | On the order/payment path, exceptions are summarised by `mcpizza/errors.py` (`safe_error`) instead of echoing raw API text, so URLs, response bodies and order JSON never reach the model or logs. |
+| Card cleared after use | The card is removed from the in-memory order after every placement attempt, success or failure. |
 | Input validation | Tool parameters are validated with pydantic v2 (card type detection, quantity bounds, etc). |
 
 ## Setup checklist

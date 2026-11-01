@@ -8,6 +8,7 @@ import stat
 from typing import Dict, Any
 
 from mcpizza.api.client import api_client
+from mcpizza.errors import safe_error, safe_status_summary
 from mcpizza.services.order_service import get_current_order
 
 
@@ -137,7 +138,7 @@ def place_order(payment_info: Dict[str, Any]) -> Dict[str, Any]:
         price_data = api_client.price_order(current_order.data)
 
         if price_data.get('Status') == -1:
-            result['error'] = f"Pricing failed: {price_data}"
+            result['error'] = f"Pricing failed: {safe_status_summary(price_data)}"
             return result
 
         # Update order with pricing info
@@ -150,7 +151,7 @@ def place_order(payment_info: Dict[str, Any]) -> Dict[str, Any]:
         result['pricing'] = amounts
 
     except Exception as price_error:
-        result['error'] = f"Pricing failed: {str(price_error)}"
+        result['error'] = f"Pricing failed: {safe_error(price_error)}"
         return result
 
     # Step 3: Add payment information
@@ -169,7 +170,7 @@ def place_order(payment_info: Dict[str, Any]) -> Dict[str, Any]:
     result['steps'].append('Payment added')
 
     # Step 4: Place the order
-    try:
+    try:  # card is removed from the order object in the finally block below
         result['steps'].append('Submitting order to Domino\'s...')
 
         response = api_client.place_order(current_order.data)
@@ -189,7 +190,7 @@ def place_order(payment_info: Dict[str, Any]) -> Dict[str, Any]:
             result['steps'].append('ORDER PLACED SUCCESSFULLY!')
 
     except Exception as place_error:
-        result['error'] = f"ORDER FAILED: {str(place_error)}"
+        result['error'] = f"ORDER FAILED: {safe_error(place_error)}"
         result['possible_causes'] = [
             'Invalid payment information',
             'Store not accepting online orders',
@@ -197,5 +198,8 @@ def place_order(payment_info: Dict[str, Any]) -> Dict[str, Any]:
             'API limitations',
             'CAPTCHA verification required'
         ]
+    finally:
+        # Never leave card data on the in-memory order after a placement attempt
+        current_order.data['Payments'] = []
 
     return result
