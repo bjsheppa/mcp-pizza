@@ -115,4 +115,4 @@ Unofficial and not affiliated with Domino's. Ordering through an unofficial API 
 
 See [CONTRIBUTING.md](CONTRIBUTING.md): no personal info in this repo.
 
-MIT. Based on [GrahamMcBain/mcpizza](https://github.com/GrahamMcBain/mcpizza) (MIT).
+MIT, see [LICENSE](LICENSE). Based on [GrahamMcBain/mcpizza](https://github.com/GrahamMcBain/mcpizza) (MIT).
