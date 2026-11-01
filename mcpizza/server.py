@@ -7,7 +7,6 @@ This is the main server coordinator that registers and routes MCP tools.
 Business logic is in services/, tool handlers in tools/.
 """
 
-from typing import Any, Optional
 from mcp.server import Server
 from mcp.server.context import ServerRequestContext
 from mcp.types import (
@@ -52,7 +51,7 @@ from mcpizza.tools.guidance_tools import handle_get_ordering_guidance
 
 async def list_tools(
     ctx: ServerRequestContext,
-    params: Optional[PaginatedRequestParams] = None,
+    params: PaginatedRequestParams | None = None,
 ) -> ListToolsResult:
     """List all available pizza ordering tools"""
     interaction_logger.log_tool_list_request()
@@ -138,7 +137,7 @@ async def list_tools(
                     "order_type": {"type": "string", "description": "Delivery or Carryout", "default": "Delivery"}
                 },
                 "required": ["store_id", "customer_name", "customer_email", "customer_phone",
-                            "delivery_address", "delivery_city", "delivery_state", "delivery_zip"]
+                           "delivery_address", "delivery_city", "delivery_state", "delivery_zip"]
             }
         ),
         Tool(
@@ -296,29 +295,25 @@ async def call_tool(
         elif name == "prepare_order":
             result = await handle_prepare_order()
         else:
-            # Unknown tool name - return error result
             interaction_logger.log_tool_response(name, False, None, error=f"Unknown tool: {name}")
             return CallToolResult(
                 content=[TextContent(type="text", text=f"Unknown tool: {name}")],
-                is_error=True
+                is_error=True,
             )
 
         interaction_logger.log_tool_response(name, True, result)
-        # Wrap list[TextContent] result in CallToolResult (is_error=False by default)
         return CallToolResult(content=result, is_error=False)
 
     except Exception as e:
         error_msg = f"Error executing {name}: {safe_error(e)}"
         interaction_logger.log_tool_response(name, False, None, error=error_msg)
         interaction_logger.log_error("tool_execution", error_msg, {"tool": name, "arguments": arguments})
-        # Return is_error=True so the model sees it as an error result
         return CallToolResult(
             content=[TextContent(type="text", text=error_msg)],
-            is_error=True
+            is_error=True,
         )
 
 
-# Initialize MCP server with tool handlers passed as constructor args
 app = Server("mcpizza", on_list_tools=list_tools, on_call_tool=call_tool)
 
 

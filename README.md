@@ -105,7 +105,7 @@ Tests do not place orders or need network access to Domino's.
 - **Not verified:** a live order end to end; pay-at-door / in-store payment; saved-card or account login.
 - **pizzapi** is an unofficial wrapper, last released in 2019 (upstream now [ggrammar/pizzapi](https://github.com/ggrammar/pizzapi)).
 - **The confirm token guards against mistakes, not a hostile agent.** Anything that can call `prepare_order` can call `place_order`.
-- **MCP 2.x** is now supported (ported).
+- **MCP SDK:** requires 2.x (`mcp>=2,<3`); 1.x is not supported.
 
 ## Disclaimer
 
