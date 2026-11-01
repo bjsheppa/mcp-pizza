@@ -1,10 +1,10 @@
 # MCP Pizza Ordering Workflow
 
 ## Overview
-MCP Pizza is a Model Context Protocol server that enables AI assistants to place real pizza orders through Domino's API.
+MCP Pizza is a Model Context Protocol server that enables AI assistants to price and, when explicitly enabled, place pizza orders through Domino's API.
 
 ## Important Notes
-- **This places REAL orders with REAL payment!**
+- **Placement is a dry run by default.** Real orders need `MCPIZZA_ALLOW_PLACE=1` and a card file (`MCPIZZA_CARD_FILE`). See docs/SECURITY.md.
 - All interactions are logged to `logs/interactions_YYYYMMDD.log`
 - Coupons are added to the `Coupons` array, not `Products`
 - The system uses a mock Order object that makes real API calls
@@ -115,23 +115,22 @@ Shows:
 - All products added to the order
 - Pricing (if available)
 
-### Step 8: Place the Real Order
+### Step 8: Prepare the Order
+```
+Tool: prepare_order
+Parameters: {}
+```
+Validates and prices the order, then returns a read-back (store, items, total) and a `confirm_token`. Show the read-back to the human. The token is single use, expires in 10 minutes, and is bound to the order contents; changing the order invalidates it.
+
+### Step 9: Place the Order
 ```
 Tool: place_order
-Parameters: {
-  "card_number": "4111111111111111",
-  "card_expiry": "12/25",
-  "card_cvv": "123",
-  "card_zip": "12345"
-}
+Parameters: { "confirm_token": "<token from prepare_order>" }
 ```
+Only the token is accepted. The card is loaded server-side from `MCPIZZA_CARD_FILE`.
 
-**This is a 3-step process:**
-1. **Price Order** - Validates order and calculates totals via Domino's `/power/price-order` endpoint
-2. **Add Payment** - Adds credit card to order data
-3. **Submit Order** - Places order via Domino's `/power/place-order` endpoint
-
-**IMPORTANT:** If pricing fails, the order stops before payment is charged.
+- Without `MCPIZZA_ALLOW_PLACE=1` this is a **dry run**: it checks everything and reports what it would send.
+- With it, the order is submitted to Domino's. Live submission is not yet verified end to end and may hit a CAPTCHA.
 
 ## Coupon vs Product Distinction
 
@@ -173,10 +172,7 @@ Customer data can be saved in `.customer_info.json` (gitignored):
     "order_type": "Carryout"
   },
   "payment": {
-    "card_number": "4111111111111111",
-    "card_expiry": "12/25",
-    "card_cvv": "123",
-    "card_zip": "12345"
+    "_note": "card data is never stored here; see MCPIZZA_CARD_FILE"
   }
 }
 ```

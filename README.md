@@ -1,239 +1,116 @@
-# 🍕 MCPizza - Enhanced
+# 🍕 MCPizza (bjsheppa fork)
 
-An educational MCP (Model Context Protocol) server demonstrating AI-powered pizza ordering with Domino's API integration.
+An MCP (Model Context Protocol) server that lets an AI assistant browse Domino's menus, price carts, and (when explicitly enabled) place an order, via the unofficial Domino's API.
 
-> **⚠️ Important**: This project is for **educational purposes only**. While it integrates with Domino's real API, actual order placement is blocked by CAPTCHA requirements. See [Limitations](#limitations) for details.
+> **⚠️ Status: experimental.** Placing an order is a **dry run by default**. Live placement against Domino's has **not been verified end to end** and may hit a CAPTCHA. See [Limitations](#limitations) and [docs/SECURITY.md](docs/SECURITY.md).
 
-## Credits
+## Lineage
 
-This project is based on [GrahamMcBain/mcpizza](https://github.com/GrahamMcBain/mcpizza), with significant enhancements:
+- Original: [GrahamMcBain/mcpizza](https://github.com/GrahamMcBain/mcpizza) (MIT)
+- Enhanced: [dshanklin-bv/mcp-pizza](https://github.com/dshanklin-bv/mcp-pizza) (real API calls, `add_pizza_with_toppings`, coupon tools, interaction logging)
+- This fork: [bjsheppa/mcp-pizza](https://github.com/bjsheppa/mcp-pizza), hardened for real ordering
 
-### Original Project
-- **Author**: Graham McBain
-- **Purpose**: Educational MCP protocol demonstration
-- **Design**: Safe-mode ordering without real placement
+### What this fork changes
 
-### Our Enhancements
-- ✅ **Real API Integration** - Actually calls Domino's pricing and validation APIs
-- ✅ **Pizza Customization** - `add_pizza_with_toppings` tool for proper coupon + topping configuration
-- ✅ **Interaction Logging** - Complete 2-way logging system for all MCP interactions
-- ✅ **Coupon Discovery** - `get_coupons` and `get_ordering_guidance` tools
-- ✅ **Enhanced Error Handling** - Detailed error reporting and validation
-- ✅ **Comprehensive Documentation** - WORKFLOW.md with step-by-step instructions
+- **Menu prices fixed.** Prices come from the menu's `Variants`; `Products` always have `Price: null`.
+- **Explicit `variant_code`** on `add_pizza_with_toppings` (e.g. `14SCREEN`). The default `P{size}I{crust}` guess does not match real menus.
+- **Two-step placement.** `prepare_order` returns a read-back and a single-use confirm token; `place_order` accepts only that token.
+- **Card stays server-side.** It is read from a locked-down JSON file and never passes through tool arguments or the model.
+- **Dry run by default.** Real placement needs `MCPIZZA_ALLOW_PLACE=1`.
+- **Log redaction** of card numbers, CVVs, and expiry values.
+- **Input validation** (pydantic v2) and the MCP SDK pinned to 1.x (`mcp>=1.2,<2`).
 
-## What This Project Demonstrates
+## Tools (13)
 
-1. **MCP Protocol Integration** - Full implementation of Model Context Protocol
-2. **Real-world API Interaction** - Integration with Domino's unofficial API
-3. **Complex Tool Orchestration** - 12 tools working together for multi-step workflows
-4. **State Management** - Order state management across tool calls
-5. **Error Handling** - Graceful handling of API validation and errors
+**Store and menu:** `find_stores`, `get_store_info`, `get_menu`, `search_menu`, `get_coupons`
 
-## Features
+**Ordering:** `create_order`, `add_pizza_with_toppings`, `add_item_to_order`, `view_order`, `clear_order`, `prepare_order`, `place_order`
 
-### Store & Menu Tools
-- 📍 `find_stores` - Find nearby Domino's by address or zip
-- 🏪 `get_store_info` - Detailed store information and hours
-- 📋 `get_menu` - Complete menu with categories
-- 🔍 `search_menu` - Search for specific items
-- 🎉 `get_coupons` - Discover available deals and coupons
+**Guidance:** `get_ordering_guidance`
 
-### Ordering Tools
-- 📝 `create_order` - Initialize a new order
-- 🍕 `add_pizza_with_toppings` - Add customized pizzas with toppings (NEW!)
-- ➕ `add_item_to_order` - Add any menu item
-- 👁️ `view_order` - Preview order details and pricing
-- 🗑️ `clear_order` - Clear current order
-- 💳 `place_order` - Attempt to place order (blocked by CAPTCHA)
+## Install
 
-### Guidance Tools
-- 🎯 `get_ordering_guidance` - AI-powered deal recommendations (NEW!)
-
-## Installation
-
-### Prerequisites
-- Python 3.10+
-- [uv](https://github.com/astral-sh/uv) package manager
-
-### Setup
+Requires Python 3.10+.
 
 ```bash
-# Clone the repository
-git clone https://github.com/dshanklin-bv/mcp-pizza.git
+git clone https://github.com/bjsheppa/mcp-pizza.git
 cd mcp-pizza
-
-# Install dependencies
-uv pip install -e .
+python -m venv .venv && .venv/bin/pip install -e . pytest pytest-asyncio
 ```
 
-### Claude Desktop Integration
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+### Claude Desktop / any MCP client
 
 ```json
 {
   "mcpServers": {
     "pizza": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/path/to/mcp-pizza",
-        "run",
-        "mcpizza"
-      ]
+      "command": "/path/to/mcp-pizza/.venv/bin/python",
+      "args": ["-m", "mcpizza"],
+      "env": { "MCPIZZA_CARD_FILE": "/secure/path/card.json" }
     }
   }
 }
 ```
 
+See `claude_desktop_config.example.json`.
+
+### Enabling real placement (opt-in)
+
+1. Create a JSON card file with keys `number`, `expiry`, `cvv`, `zip` and `chmod 600` it. The server refuses a group/world-readable file.
+2. Set `MCPIZZA_CARD_FILE` to its path.
+3. Set `MCPIZZA_ALLOW_PLACE=1` in the server environment, only when you mean it.
+
+Without step 3, `place_order` validates everything and reports what it would send, without submitting.
+
 ## Usage
 
-See [WORKFLOW.md](WORKFLOW.md) for complete ordering workflow documentation.
+The full flow is in [WORKFLOW.md](WORKFLOW.md). In short:
 
-### Basic Example
+1. `find_stores`, then `get_coupons` / `get_menu` for the store
+2. `create_order`, then `add_pizza_with_toppings` (pass `variant_code` from the menu)
+3. `view_order` to check pricing
+4. `prepare_order` returns a read-back and `confirm_token`; show it to the human
+5. `place_order` with only the `confirm_token`
 
-```
-1. Find stores: "find pizza stores near 76104"
-2. Get coupons: "what deals are available at store 8022?"
-3. Get guidance: "I want a deep dish sausage and pepperoni pizza"
-4. Create order: Create order with your details
-5. Add pizza: Use add_pizza_with_toppings with coupon code
-6. View order: Review pricing and details
-7. (Optional) Place order: Will be blocked by CAPTCHA
-```
-
-## Architecture
-
-The codebase follows a clean, modular architecture with separation of concerns:
+## Layout
 
 ```
-mcp-pizza/
-├── mcpizza/
-│   ├── server.py          # Main MCP server (303 lines, down from 1308!)
-│   ├── logger.py          # Interaction logging system
-│   ├── __main__.py        # Entry point
-│   │
-│   ├── models/            # Pydantic parameter models
-│   │   └── params.py      # Tool parameter definitions
-│   │
-│   ├── services/          # Business logic layer
-│   │   ├── store_service.py     # Store lookup & menu browsing
-│   │   ├── order_service.py     # Order creation & management
-│   │   ├── payment_service.py   # Payment processing
-│   │   └── guidance_service.py  # AI ordering guidance
-│   │
-│   ├── tools/             # MCP tool handlers
-│   │   ├── store_tools.py       # Store-related tools
-│   │   ├── menu_tools.py        # Menu-related tools
-│   │   ├── order_tools.py       # Order-related tools
-│   │   └── guidance_tools.py    # Guidance tools
-│   │
-│   ├── api/               # Domino's API client
-│   │   ├── endpoints.py         # API endpoint constants
-│   │   └── client.py            # HTTP client wrapper
-│   │
-│   └── utils/             # Utilities
-│       └── mock_order.py        # Mock order object creation
-│
-├── tests/                 # Comprehensive test suite (18 tests)
-│   ├── test_models.py     # Model validation tests
-│   ├── test_utils.py      # Utility function tests
-│   ├── test_api_client.py # API client tests
-│   └── test_services.py   # Service layer tests
-│
-├── examples/              # Example scripts
-│   └── test_mcp_with_ollama.py  # Autonomous testing
-│
-├── logs/                  # Interaction logs (gitignored)
-├── WORKFLOW.md            # Complete workflow documentation
-└── README.md              # This file
+mcpizza/
+  server.py            MCP server, tool registration
+  logger.py            JSON interaction log with redaction
+  models/params.py     pydantic v2 parameter models
+  services/            store, order, payment, guidance logic
+  tools/               MCP tool handlers
+  api/                 Domino's HTTP client
+  utils/mock_order.py  order object used with pizzapi calls
+tests/                 39 tests (models, services, API client, confirm gate, card file, redaction, server entrypoints)
+docs/SECURITY.md       threat model and safe-ordering setup
+WORKFLOW.md            step-by-step tool workflow
+docs/                 security model, pricing investigation notes
 ```
 
-### Benefits of This Architecture
+Logs go to `logs/interactions_YYYYMMDD.log` (gitignored), one JSON object per line.
 
-1. **Maintainability**: Each module has a single responsibility
-2. **Testability**: Services and utilities are easily unit tested
-3. **Readability**: Clear separation between MCP layer, business logic, and API calls
-4. **Scalability**: Easy to add new tools or services
-5. **Reusability**: Services can be reused outside of MCP context
+## Tests
 
-## Logging
+```bash
+.venv/bin/pytest -q    # 39 passed
+```
 
-All MCP interactions are automatically logged to `logs/interactions_YYYYMMDD.log`:
-
-- Tool calls with full arguments
-- Tool responses with previews
-- State changes (order creation, items added)
-- Errors with context
-
-Log format is JSON for easy parsing and analysis.
+Tests do not place orders or need network access to Domino's.
 
 ## Limitations
 
-### CAPTCHA Requirement
-Domino's API requires CAPTCHA verification for order placement. Our system successfully:
-- ✅ Validates pizza configurations
-- ✅ Prices orders correctly (e.g., $11.90 for medium 2-topping)
-- ✅ Accepts payment structure
-- ❌ **Cannot submit final order** (blocked by `recaptchaVerificationRequired`)
-
-This is an intentional fraud prevention measure by Domino's and **cannot be bypassed** without violating their terms of service.
-
-### What Works
-- Store lookup and menu browsing
-- Coupon discovery and deal analysis
-- Order validation and pricing
-- Complete order preparation
-- All MCP protocol features
-
-### What Doesn't Work
-- Final order submission (CAPTCHA required)
-- Real payment processing
-
-## Development
-
-### Testing
-
-```bash
-# Run autonomous test suite (tests all tools except order placement)
-python test_mcp_with_ollama.py
-```
-
-### Contributing
-
-This is an educational project demonstrating MCP protocol integration. Contributions that enhance the educational value are welcome!
-
-## Technical Details
-
-- **MCP SDK**: Official Model Context Protocol SDK
-- **API Library**: pizzapi (unofficial Domino's API wrapper)
-- **Order Structure**: Mock order object with real API calls
-- **Validation**: Multi-step validation (structure → pricing → placement)
+- **CAPTCHA (unconfirmed).** Domino's may require `recaptchaVerificationRequired` on placement, per the upstream pizzapi README. Not yet confirmed here. Do not attempt to bypass it.
+- **Not verified:** a live order end to end; pay-at-door / in-store payment; saved-card or account login.
+- **pizzapi** is an unofficial wrapper, last released in 2019 (upstream now [ggrammar/pizzapi](https://github.com/ggrammar/pizzapi)).
+- **The confirm token guards against mistakes, not a hostile agent.** Anything that can call `prepare_order` can call `place_order`.
+- **MCP 2.x** is not supported yet; a port is planned as a separate change.
 
 ## Disclaimer
 
-⚠️ **Educational Use Only**
-
-This project is for learning about:
-- Model Context Protocol implementation
-- Real-world API integration
-- Multi-tool orchestration
-- State management in AI assistants
-
-**Do not use for actual pizza ordering.** Use Domino's official website or mobile app instead.
+Unofficial and not affiliated with Domino's. Ordering through an unofficial API may violate their terms. Use at your own risk.
 
 ## License
 
-MIT License
-
-Based on [GrahamMcBain/mcpizza](https://github.com/GrahamMcBain/mcpizza) (MIT License)
-
-## Acknowledgments
-
-- **Graham McBain** - Original mcpizza project and MCP implementation
-- **pizzapi contributors** - Unofficial Domino's API wrapper
-- **Anthropic** - Model Context Protocol specification
-
----
-
-Built with Claude Code 🤖
+MIT. Based on [GrahamMcBain/mcpizza](https://github.com/GrahamMcBain/mcpizza) (MIT).
